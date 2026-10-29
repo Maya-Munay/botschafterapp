@@ -1,0 +1,63 @@
+{
+ "version": 2,
+ "felder": [
+  {
+   "feld": "kunde",
+   "seite": 0,
+   "x": 236.3,
+   "y": 682.92,
+   "groesse": 22.99,
+   "farbe": [
+    0.2941,
+    0.2039,
+    0.1725
+   ],
+   "mitte": 297.16,
+   "max": 522.32,
+   "vorsatz": "Aloha, "
+  },
+  {
+   "feld": "name",
+   "seite": 0,
+   "x": 152.43,
+   "y": 145.92,
+   "groesse": 12.49,
+   "farbe": [
+    0.2941,
+    0.2039,
+    0.1725
+   ],
+   "mitte": null,
+   "max": 406.53,
+   "vorsatz": ""
+  },
+  {
+   "feld": "kontakt",
+   "seite": 0,
+   "x": 152.43,
+   "y": 130.92,
+   "groesse": 9.8,
+   "farbe": [
+    0.2941,
+    0.2039,
+    0.1725
+   ],
+   "mitte": null,
+   "max": 406.53,
+   "vorsatz": ""
+  },
+  {
+   "feld": "foto",
+   "seite": 0,
+   "x": 102.75,
+   "y": 124.92,
+   "b": 33.0,
+   "h": 45.0,
+   "hintergrund": [
+    1.0,
+    1.0,
+    1.0
+   ]
+  }
+ ]
+}
