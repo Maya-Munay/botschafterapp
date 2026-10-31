@@ -466,8 +466,6 @@ table.team th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color
 .dok-marke.lernen{background:#eef4ea;border-color:#cfe0c4}
 .dok-marke.land{background:#fff;border-color:var(--linie)}
 .dok-marke.persoenlich{background:#fbeee9;border-color:#ecc9bd}
-.mail-doks{font-size:12.5px;color:var(--leise);margin:-2px 0 8px 2px}
-.mail-doks b{font-weight:600;color:var(--kakao)}
 .dok-form{flex-basis:100%;display:flex;flex-direction:column;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--linie);font-size:14px}
 .dok-form input[type=text]{width:100%}
 .abgang-tag{background:#fff;border:1px solid var(--linie);border-radius:12px;padding:10px 12px;margin-bottom:10px}
@@ -1442,12 +1440,8 @@ async function dokumenteLaden(){
   DOKINFO = Object.fromEntries((info.data || []).map(i => [i.name, i]));
 }
 const dokPasst = d => dokFilter === 'alle' || !!DOKINFO[d.name]?.[dokFilter];
-// Gleiche Regel wie in der Brücke: Häkchen je Mail + „für alle / EU / Schweiz“ passend zum Land des Kunden
-const istSchweiz = land => /^(ch|che|schweiz|switzerland|suisse|svizzera|svizra)$/i.test(String(land || '').trim());
+// Zuordnung je Mail + „für alle / EU / Schweiz“ – welche Dokumente rausgehen, entscheidet die Brücke beim Senden (Land des Kunden)
 const DOK_FUER = {alle:'für alle Kunden', eu:'nur EU / Deutschland', ch:'nur Schweiz'};
-const dokumenteFuerMail = (art, land) => Object.values(DOKINFO)
-  .filter(i => i[art === 'begruessung' ? 'begruessungsmail' : 'willkommensmail'] && ['', 'alle', undefined, istSchweiz(land) ? 'ch' : 'eu'].includes(i.fuer))
-  .map(i => i.name).filter(n => !Array.isArray(DOKS) || DOKS.some(d => d.name === n));
 function dokZeile(d, leitung){
   const i = DOKINFO[d.name] || {}, offen = dokBearbeiten === d.name;
   return `<div class="cafe-karte dok-zeile${offen ? ' offen' : ''}">
@@ -1460,7 +1454,7 @@ function dokZeile(d, leitung){
       ${leitung ? `<button class="weg" data-dok-weg="${esc(d.name)}" title="Dokument löschen" aria-label="Dokument löschen">×</button>` : ''}</div>
     ${offen ? `<div class="dok-form">
       <b style="font-size:13px">Geht mit dieser Mail an die Kunden:</b>
-      <label><input type="checkbox" id="dok-bg" ${i.begruessungsmail ? 'checked' : ''}> ✉ Begrüßungsmail <span class="leise">(nach dem ersten Besuch)</span></label>
+      <label><input type="checkbox" id="dok-bg" ${i.begruessungsmail ? 'checked' : ''}> ✉ Begrüßungsmail <span class="leise">(nach dem ersten Gespräch – noch kein Kunde)</span></label>
       <label><input type="checkbox" id="dok-wm" ${i.willkommensmail ? 'checked' : ''}> ✉ Willkommen in der Familie <span class="leise">(nach der ersten Bestellung)</span></label>
       <label style="display:flex;align-items:center;gap:8px">Für welche Kunden?
         <select id="dok-fuer" style="width:auto">${Object.entries(DOK_FUER).map(([k, t]) => `<option value="${k}"${(i.fuer || 'alle') === k ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
@@ -1478,9 +1472,9 @@ async function dokumenteZeichnen(neu){
   const zahl = k => alle.filter(d => DOKINFO[d.name]?.[k]).length;
   const sichtbar = alle.filter(dokPasst);
   el.innerHTML = `<div class="liste-kopf"><h2>Dokumente</h2></div>
-    <p class="leise" style="margin-top:-6px">Preisliste, Portfolios und Flyer – zum Ansehen, zum Lernen und zum Weitergeben an eure Kunden.
+    <p class="leise" style="margin-top:-6px">Danke-Seite fürs Kennenlernen, Willkommen in der Familie, Preislisten und Portfolios – zum Ansehen, zum Lernen und zum Weitergeben. Unter „Bearbeiten“ legt die Teamleitung fest, mit welcher Mail ein Dokument rausgeht und für welches Land.
       Unter <b>Zum Lernen</b> findet ihr alles, was hilft, Maya Munay und den Kakao gut zu erklären.</p>
-    ${DEMO ? '<div class="leer">In der Demo gibt es keine Dokumente – in der echten App liegen hier Preisliste, Portfolios und Flyer.</div>'
+    ${DEMO ? '<div class="leer">In der Demo gibt es keine Dokumente – in der echten App liegen hier die Danke-Seite, Willkommen in der Familie, Preislisten und Portfolios.</div>'
       : DOKS.fehler ? `<div class="fehlt">Die Dokumente lassen sich gerade nicht laden: ${esc(DOKS.fehler)}</div>`
       : `${dokInfoFehlt ? '' : `<div class="chips" style="margin:4px 0 12px">
           <button class="chip${dokFilter === 'alle' ? ' an' : ''}" data-dok-filter="alle">Alle <small>${alle.length}</small></button>
@@ -2008,18 +2002,14 @@ async function odooFehlertext(error){
   return text;
 }
 // Zwei Mails an den Kunden – per Knopf, jederzeit erneut sendbar (Wunsch David, 16.10.2026)
-const MAILS = {begruessung:{titel:'Begrüßungsmail', zweck:'nach dem ersten Besuch – Danke fürs Kennenlernen', feld:'begruessungGesendet'},
-               willkommen:{titel:'Willkommen in der Familie', zweck:'nach der ersten Bestellung – mit persönlichem Willkommens-Flyer', feld:'willkommenGesendet'}};
+const MAILS = {begruessung:{titel:'Begrüßungsmail', zweck:'nach dem ersten Gespräch – Danke, Preisliste und Willkommensangebot', feld:'begruessungGesendet'},
+               willkommen:{titel:'Willkommen in der Familie', zweck:'nach der ersten Bestellung – persönlicher Willkommens-Flyer und Unterlagen', feld:'willkommenGesendet'}};
 function mailKnoepfeHtml(c){
   const darf = istLeitung() || c.betreuung === ich.id;
   if (!darf || !c.betreuung) return '';
-  const doks = art => {
-    const n = dokumenteFuerMail(art, c.land).map(x => dokName(x) + (DOKVORLAGEN.has(x) ? ' ✨' : ''));
-    if (art === 'willkommen') n.unshift(`persönlicher Willkommens-Flyer${istSchweiz(c.land) ? ' (Schweiz)' : ''} ✨`);
-    return `<div class="mail-doks">${istSchweiz(c.land) ? '🇨🇭 ' : ''}Dazu: ${n.length ? n.map(x => `<b>${esc(x)}</b>`).join(' · ') : 'keine Dokumente'}${istLeitung() ? ' · <button class="link-knopf" data-akt="mail-doks" style="padding:0;font-size:12.5px">zuordnen</button>' : ''}${n.some(x => x.endsWith('✨')) ? '<br><span style="font-size:11.5px">✨ = mit eurem Café-Namen, Botschafter, Kontakt und Foto</span>' : ''}</div>`; };
   const zeile = art => { const m = MAILS[art], am = c[m.feld];
     return `<div class="mail-zeile"><button class="knopf klein ${am ? 'leise' : ''}" data-akt="mail-${art}">✉ ${m.titel}${am ? ' erneut senden' : ' senden'}</button>
-      <span class="leise">${am ? `✓ gesendet am ${datumDe(String(am).slice(0, 10))}` : m.zweck}</span></div>${doks(art)}`; };
+      <span class="leise">${am ? `✓ gesendet am ${datumDe(String(am).slice(0, 10))}` : m.zweck}</span></div>`; };
   return `<div class="mails"><h4 style="margin:14px 0 6px">Mails an den Kunden</h4>
     ${c.email ? '' : '<div class="fehlt" style="margin-bottom:6px">Für die Mails fehlt noch die E-Mail-Adresse der Ansprechperson.</div>'}
     ${zeile('begruessung')}${zeile('willkommen')}
@@ -2054,8 +2044,9 @@ function willkommenAbschnitt(){
   const zuletzt = D.cafes.flatMap(c => [['Begrüßung', c.begruessungGesendet], ['Willkommen', c.willkommenGesendet]].filter(x => x[1]).map(([a, d]) => ({c, a, d})))
     .sort((x, y) => String(y.d).localeCompare(String(x.d))).slice(0, 8);
   return `<h3 id="willkommen-bereich">Mails an Kunden</h3>
-    <div class="hinweis" style="text-align:left;margin:-4px 0 8px">Am Ort gibt es zwei Knöpfe: <b>Begrüßungsmail</b> (nach dem ersten Besuch – Danke fürs Kennenlernen)
-      und <b>Willkommen in der Familie</b> (nach der ersten Bestellung – mit persönlichem Willkommens-Flyer und den Dokumenten, die unter „Dokumente“ dafür markiert sind).
+    <div class="hinweis" style="text-align:left;margin:-4px 0 8px">Am Ort gibt es zwei Knöpfe: <b>Begrüßungsmail</b> (nach dem ersten Gespräch, noch kein Kunde – mit der persönlichen Danke-Seite, der Preisliste und dem Willkommensangebot: 35 %, in der Schweiz 40 %)
+      und <b>Willkommen in der Familie</b> (nach der ersten Bestellung – mit persönlichem Willkommens-Flyer, „Willkommen in der Familie“, Preisliste und Portfolios).
+      Welche Dokumente mitgehen, legt ihr unter „Dokumente“ fest; Kunden in der Schweiz bekommen automatisch die Schweizer Fassung.
       Odoo verschickt im Namen des Botschafters, Antworten gehen an die Mayamunay-Adresse aus dem Profil. Am Ort steht danach „gesendet am …“; erneut senden geht jederzeit.</div>
     ${ohneProfil.length ? `<div class="fehlt" style="margin-top:8px">Profil (Vorname + Mayamunay-Adresse) fehlt noch bei: ${ohneProfil.map(esc).join(', ')} – jede Person trägt es selbst über das runde Symbol oben rechts ein.</div>` : ''}
     <div class="neu-box" style="margin-top:10px"><b>Testlauf</b> <span class="leise" style="font-size:13px">(geht nur an die Testadresse, der Kunde bekommt nichts)</span>
@@ -2127,7 +2118,7 @@ function demoAustausch(){
     {id:'b1', thema_id:'f1', person:lena, text:'Ich zeige meistens 20 g in 200 ml Hafermilch. Wie macht ihr das?', erstellt:t(3, 10)},
     {id:'b2', thema_id:'f1', person:mira, text:'Bei mir 25 g und eine Prise Zimt – kommt super an!', erstellt:t(0, 9)},
     {id:'b3', thema_id:'f2', person:mira, text:'Wer hätte Lust, im November eine Zeremonie mitzugestalten?', erstellt:t(5, 18)},
-    {id:'b4', thema_id:'f3', person:ich.id, text:'Bewährt haben sich: 2 × ALOHA 33 g, 1 × KUKULKAN 33 g, Postkarten-Set und der Vorstellungs-Flyer.', erstellt:t(9, 11)},
+    {id:'b4', thema_id:'f3', person:ich.id, text:'Bewährt haben sich: 2 × ALOHA 33 g, 1 × KUKULKAN 33 g, Postkarten-Set und die Danke-Seite vom Kennenlernen.', erstellt:t(9, 11)},
   ];
   CHAT = [{id:'c1', von:lena, an:ich.id, text:'Hi! Magst du mir morgen die Proben für Hannover mitbringen?', erstellt:t(0, 8), gelesen:null},
           {id:'c2', von:ich.id, an:mira, text:'Danke für deine Hilfe beim Pop-up!', erstellt:t(2, 17), gelesen:t(2, 18)}];
@@ -2828,7 +2819,6 @@ panel.addEventListener('click', e => {
   if (akt === 'willkommen-vorschau') return willkommenVorschau(c.id);
   if (akt === 'kundenprofil') return kundenprofilOeffnen(c, false);
   if (akt === 'mail-begruessung' || akt === 'mail-willkommen') return mailSendenKnopf(c, akt.slice(5), b);
-  if (akt === 'mail-doks') { dokFilter = 'alle'; return ansichtWechseln('dokumente'); }
   if (akt === 'antrag') return antragStellen(c);
   if (akt === 'antrag-zurueck') return antragEntfernen(b.dataset.id, 'zurueckgezogen');
   if (akt === 'antrag-nein') return antragEntfernen(b.dataset.id, 'abgelehnt');
@@ -3892,8 +3882,8 @@ const RUNDGANG = [
     <p>Ist ein Ort <b>Kunde</b>, findest du in seinem Fenster:</p>
     <p>🛒 <b>Bestellung aufgeben</b> – sie landet bei Maya Munay als Angebot und wird dort geprüft.</p>
     <p>📦 <b>Bestellstatus</b> aus Odoo: Angebot, bestätigt oder storniert · abgeschickt am … mit <b>Sendungsnummer</b> · bezahlt oder offen.</p>
-    <p>✉ <b>Zwei Mails per Knopf</b> – du entscheidest, wann: die <b>Begrüßung</b> nach dem ersten Besuch und
-       <b>Willkommen in der Familie</b> nach der ersten Bestellung, mit persönlichem Flyer. Danach steht dort „gesendet am …“.</p>
+    <p>✉ <b>Zwei Mails per Knopf</b> – du entscheidest, wann: die <b>Begrüßung</b> nach dem ersten Gespräch (Danke-Seite, Preisliste, Willkommensangebot) und
+       <b>Willkommen in der Familie</b> nach der ersten Bestellung, mit persönlichem Flyer. Schweizer Kunden bekommen die Schweizer Unterlagen. Danach steht dort „gesendet am …“.</p>
     <p>🛍️ <b>Kundenprofil:</b> Foto, kurzer Text, Website – und ein Häkchen, wenn es dort unseren Kakao zu kaufen gibt.
        Dann kommt der Ort auf die <b>Kakaoshop-Seite</b>.</p>
     <p>🤝 Das Häkchen <b>„Kunde wird aktiv betreut“</b> zeigt, dass du am Kunden dranbleibst – das zählt bei der Provision.</p>`},
