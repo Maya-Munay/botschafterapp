@@ -1924,7 +1924,7 @@ async function provisionExcel(){
   } catch (err) { fehlerZeigen('Die Excel-Datei ließ sich nicht erstellen:', err.message || String(err)); }
 }
 
-/* ---------- Botschafter-Profil (für Willkommens-Flyer + Willkommensmail) ---------- */
+/* ---------- Botschafter-Profil (für die persönlichen Unterlagen + Mails an Kunden) ---------- */
 let PROFILE = {}, FOTO_URL = {}, WILLKOMMEN = {an:false, ab:'', absender:'info@mayamunay.com'};
 async function profileLaden(){
   if (DEMO || !sb) return;
@@ -1950,7 +1950,7 @@ async function profilOeffnen(){
   const p = PROFILE[ich.id] || {}, teile = ich.name.split(/\s+/), url = await fotoUrl(ich.id);
   pfFoto = null;
   document.getElementById('pf-inhalt').innerHTML = `
-    <p class="leise" style="margin-top:-4px">Diese Angaben stehen im Willkommens-Flyer und in der Willkommensmail an deine Kunden.
+    <p class="leise" style="margin-top:-4px">Diese Angaben stehen in den persönlichen Unterlagen (z. B. „Willkommen in der Familie“) und in den Mails an deine Kunden.
       Antworten deiner Kunden gehen an die E-Mail-Adresse hier.</p>
     <div class="pf-foto"><div class="pf-bild" id="pf-bild" style="${url ? `background-image:url('${url}')` : ''}">${url ? '' : '🌱'}</div>
       <div><label class="knopf leise klein" style="display:inline-block;cursor:pointer">Foto wählen<input type="file" id="pf-datei" accept="image/*" hidden></label>
@@ -1970,7 +1970,7 @@ async function profilOeffnen(){
       <button class="knopf leise" data-pf="zu">Abbrechen</button><button class="knopf gold" data-pf="speichern">Speichern</button></div>`;
   document.getElementById('profil-dialog').classList.remove('versteckt');
 }
-// Foto quadratisch-rund zuschneiden (400 × 400 PNG mit durchsichtigen Ecken) – so landet es direkt im Flyer
+// Foto quadratisch-rund zuschneiden (400 × 400 PNG mit durchsichtigen Ecken) – so landet es direkt in den Unterlagen
 async function fotoRund(datei){
   const bild = await createImageBitmap(datei), g = 400, c = document.createElement('canvas'); c.width = c.height = g;
   const x = c.getContext('2d'), seite = Math.min(bild.width, bild.height);
@@ -2023,7 +2023,7 @@ async function odooFehlertext(error){
 }
 // Zwei Mails an den Kunden – per Knopf, jederzeit erneut sendbar (Wunsch David, 16.10.2026)
 const MAILS = {begruessung:{titel:'Begrüßungsmail', zweck:'nach dem ersten Gespräch – Danke und Willkommensangebot', feld:'begruessungGesendet'},
-               willkommen:{titel:'Willkommen in der Familie', zweck:'nach der ersten Bestellung – persönlicher Willkommens-Flyer und Unterlagen', feld:'willkommenGesendet'}};
+               willkommen:{titel:'Willkommen in der Familie', zweck:'nach der ersten Bestellung – „Willkommen in der Familie“, Kakao-Rechner und Unterlagen', feld:'willkommenGesendet'}};
 function mailKnoepfeHtml(c){
   const darf = istLeitung() || c.betreuung === ich.id;
   if (!darf || !c.betreuung) return '';
@@ -2035,7 +2035,7 @@ function mailKnoepfeHtml(c){
     ${zeile('begruessung')}${zeile('willkommen')}
     <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;margin:2px 0 6px"><input type="checkbox" data-f="preisliste" style="flex:0 0 auto;margin-top:2px" ${c.preisliste !== false ? 'checked' : ''}>
       <span>📄 Preisliste mitschicken <span class="leise">(${istSchweizOrt(c) ? 'Schweizer' : 'EU-'}Preisliste – die Mail nennt sie dann im Text)</span></span></label>
-    ${!DEMO ? '<button class="link-knopf" data-akt="willkommen-vorschau" style="padding:0">Flyer-Vorschau ansehen</button>' : ''}</div>`;
+    ${!DEMO ? '<button class="link-knopf" data-akt="willkommen-vorschau" style="padding:0">Kakao-Rechner ansehen</button>' : ''}</div>`;
 }
 async function mailSendenKnopf(c, art, knopf){
   const m = MAILS[art], am = c[m.feld];
@@ -2067,7 +2067,7 @@ function willkommenAbschnitt(){
     .sort((x, y) => String(y.d).localeCompare(String(x.d))).slice(0, 8);
   return `<h3 id="willkommen-bereich">Mails an Kunden</h3>
     <div class="hinweis" style="text-align:left;margin:-4px 0 8px">Am Ort gibt es zwei Knöpfe: <b>Begrüßungsmail</b> (nach dem ersten Gespräch, noch kein Kunde – mit der persönlichen Danke-Seite, der Preisliste und dem Willkommensangebot: 35 %, in der Schweiz 40 %)
-      und <b>Willkommen in der Familie</b> (nach der ersten Bestellung – mit persönlichem Willkommens-Flyer, „Willkommen in der Familie“, Preisliste und Portfolios).
+      und <b>Willkommen in der Familie</b> (nach der ersten Bestellung – mit „Willkommen in der Familie“, dem Kakao-Rechner, Preisliste und Portfolios).
       Welche Dokumente mitgehen, legt ihr unter „Dokumente“ fest; Kunden in der Schweiz bekommen automatisch die Schweizer Fassung.
       Ob die Preisliste mitgeht, entscheidet das Häkchen „📄 Preisliste mitschicken“ am Ort – beim Testlauf gilt das Häkchen des gewählten Ortes.
       Odoo verschickt im Namen des Botschafters, Antworten gehen an die Mayamunay-Adresse aus dem Profil. Am Ort steht danach „gesendet am …“; erneut senden geht jederzeit.</div>
@@ -2077,7 +2077,7 @@ function willkommenAbschnitt(){
         <select id="wt-art"><option value="begruessung">Begrüßungsmail</option><option value="willkommen">Willkommen in der Familie</option></select>
         <input id="wt-an" type="email" placeholder="Testadresse" style="min-width:200px">
         <button class="knopf klein" data-wt="senden" ${DEMO ? 'disabled' : ''}>Testmail senden</button>
-        <button class="knopf leise klein" data-wt="vorschau" ${DEMO ? 'disabled' : ''}>Flyer-Vorschau</button></div></div>
+        <button class="knopf leise klein" data-wt="vorschau" ${DEMO ? 'disabled' : ''}>Kakao-Rechner ansehen</button></div></div>
     <div class="inline" style="margin-top:10px;align-items:center;font-size:14px">Absender, wenn Odoo für die Adresse des Botschafters keinen eigenen Mailserver kennt:
       <input id="wt-absender" type="email" value="${esc(WILLKOMMEN.absender)}" style="min-width:200px" ${DEMO ? 'disabled' : ''}><button class="knopf leise klein" data-wt="absender" ${DEMO ? 'disabled' : ''}>Speichern</button></div>
     ${zuletzt.length ? `<div class="leise" style="margin-top:8px;font-size:13px"><b>Zuletzt gesendet:</b> ${zuletzt.map(x => `${esc(x.c.name)} – ${x.a} (${datumDe(String(x.d).slice(0, 10))})`).join(' · ')}</div>` : ''}`;
@@ -3906,7 +3906,7 @@ const RUNDGANG = [
     <p>🛒 <b>Bestellung aufgeben</b> – sie landet bei Maya Munay als Angebot und wird dort geprüft.</p>
     <p>📦 <b>Bestellstatus</b> aus Odoo: Angebot, bestätigt oder storniert · abgeschickt am … mit <b>Sendungsnummer</b> · bezahlt oder offen.</p>
     <p>✉ <b>Zwei Mails per Knopf</b> – du entscheidest, wann: die <b>Begrüßung</b> nach dem ersten Gespräch (Danke-Seite, Preisliste, Willkommensangebot) und
-       <b>Willkommen in der Familie</b> nach der ersten Bestellung, mit persönlichem Flyer. Schweizer Kunden bekommen die Schweizer Unterlagen. Danach steht dort „gesendet am …“.</p>
+       <b>Willkommen in der Familie</b> nach der ersten Bestellung, mit „Willkommen in der Familie“ und dem Kakao-Rechner. Schweizer Kunden bekommen die Schweizer Unterlagen. Danach steht dort „gesendet am …“.</p>
     <p>🛍️ <b>Kundenprofil:</b> Foto, kurzer Text, Website – und ein Häkchen, wenn es dort unseren Kakao zu kaufen gibt.
        Dann kommt der Ort auf die <b>Kakaoshop-Seite</b>.</p>
     <p>🤝 Das Häkchen <b>„Kunde wird aktiv betreut“</b> zeigt, dass du am Kunden dranbleibst – das zählt bei der Provision.</p>`},
@@ -3914,9 +3914,9 @@ const RUNDGANG = [
     <p>💰 <b>Provision:</b> eigener Reiter mit dem Modell „Geld oder Kakao“, einem Rechner und deinen Aufträgen –
        Schritt für Schritt <b>ausstehend → genehmigt → bezahlt</b>. Die Sätze sind noch ein Beispiel, bis das Team sie bestätigt.</p>
     <p>💬 <b>Austausch:</b> ein Forum mit Themen für Fragen und Wissen – und ein direkter Chat mit einzelnen Personen aus dem Team.</p>
-    <p>📄 <b>Dokumente:</b> Flyer, Preislisten und Infos zum Nachlesen – auch zum Selbst-Lernen.</p>
+    <p>📄 <b>Dokumente:</b> Unterlagen, Preislisten und Infos zum Nachlesen – auch zum Selbst-Lernen.</p>
     <p>🙂 <b>Dein Profil</b> (rundes Symbol oben rechts): Foto, Name, Telefon, E-Mail und ob du deine Provision lieber in Geld oder in Kakao möchtest.
-       Name und Foto erscheinen auch im Willkommens-Flyer für deine Kunden.</p>`},
+       Name und Foto erscheinen auch in den persönlichen Unterlagen für deine Kunden.</p>`},
   {titel:'Achtsam mit Daten 🤍', html:() => `
     <p>Uns ist wichtig, dass sich alle hier sicher fühlen:</p>
     <p>🔐 <b>Nur eingeladene Personen</b> aus dem Team sehen die Karte. Die Anmeldung läuft ohne Passwort über einen Link per Mail.</p>
