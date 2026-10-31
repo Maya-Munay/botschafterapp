@@ -838,7 +838,7 @@ const ortZeile = c => ({id:c.id, name:c.name || '', adresse:c.adresse || '', sta
   lat:c.lat, lng:c.lng, status:c.status, betreuung:c.betreuung || null, art:c.art || [], zeremonie:!!c.zeremonie, event:!!c.event,
   ansprechperson:c.ansprechperson || '', vorname:c.vorname || '', nachname:c.nachname || '', telefon:c.telefon || '', email:c.email || '',
   kontakt:c.kontakt || '', naechster_kontakt:c.naechsterKontakt || null, notiz:c.notiz || '',
-  google:c.google || null, osm:c.osm || null, erstellt_von:c.erstelltVon || null, kundenpflege:c.kundenpflege !== false,
+  google:c.google || null, osm:c.osm || null, erstellt_von:c.erstelltVon || null, kundenpflege:c.kundenpflege !== false, preisliste:c.preisliste !== false,
   verkaufsstelle:!!c.verkaufsstelle, shop_text:c.shopText || '', shop_foto:c.shopFoto || ''});
 const besuchZeile = (b, ortId) => ({id:b.id, ort_id:ortId, datum:b.datum, person:b.person || null, notiz:b.notiz});
 const probeZeile = (p, ortId) => ({id:p.id, ort_id:ortId, datum:p.datum, sorte:p.sorte, menge:p.menge || '', anzahl:Math.max(1, +p.anzahl || 1), bestellung:p.bestellung, person:p.person || null});
@@ -879,7 +879,7 @@ async function datenLaden(){
     kontakt:x.kontakt, naechsterKontakt:x.naechster_kontakt || '', notiz:x.notiz,
     google:x.google || '', osm:x.osm || '', erstelltVon:x.erstellt_von || '',
     odooLead:x.odoo_lead || null, odooPhase:x.odoo_phase || '', odooDaten:x.odoo_daten || null,
-    willkommenGesendet:x.willkommen_gesendet || '', begruessungGesendet:x.begruessung_gesendet || '', willkommenInfo:x.willkommen_info || '', kundenpflege:x.kundenpflege !== false,
+    willkommenGesendet:x.willkommen_gesendet || '', begruessungGesendet:x.begruessung_gesendet || '', willkommenInfo:x.willkommen_info || '', kundenpflege:x.kundenpflege !== false, preisliste:x.preisliste !== false,
     verkaufsstelle:!!x.verkaufsstelle, shopText:x.shop_text || '', shopFoto:x.shop_foto || '',
     besuche:(bNach[x.id] || []).map(y => ({id:y.id, datum:y.datum, person:y.person || '', notiz:y.notiz})),
     proben:(pNach[x.id] || []).map(y => ({id:y.id, datum:y.datum, sorte:y.sorte, menge:y.menge, anzahl:y.anzahl || 1, bestellung:y.bestellung, person:y.person || ''}))}));
@@ -1441,6 +1441,7 @@ async function dokumenteLaden(){
 }
 const dokPasst = d => dokFilter === 'alle' || !!DOKINFO[d.name]?.[dokFilter];
 // Zuordnung je Mail + „für alle / EU / Schweiz“ – welche Dokumente rausgehen, entscheidet die Brücke beim Senden (Land des Kunden)
+const istSchweizOrt = c => /^(ch|che|schweiz|switzerland|suisse|svizzera|svizra)$/i.test(String(c.land || '').trim());
 const DOK_FUER = {alle:'für alle Kunden', eu:'nur EU / Deutschland', ch:'nur Schweiz'};
 function dokZeile(d, leitung){
   const i = DOKINFO[d.name] || {}, offen = dokBearbeiten === d.name;
@@ -2002,7 +2003,7 @@ async function odooFehlertext(error){
   return text;
 }
 // Zwei Mails an den Kunden – per Knopf, jederzeit erneut sendbar (Wunsch David, 16.10.2026)
-const MAILS = {begruessung:{titel:'Begrüßungsmail', zweck:'nach dem ersten Gespräch – Danke, Preisliste und Willkommensangebot', feld:'begruessungGesendet'},
+const MAILS = {begruessung:{titel:'Begrüßungsmail', zweck:'nach dem ersten Gespräch – Danke und Willkommensangebot', feld:'begruessungGesendet'},
                willkommen:{titel:'Willkommen in der Familie', zweck:'nach der ersten Bestellung – persönlicher Willkommens-Flyer und Unterlagen', feld:'willkommenGesendet'}};
 function mailKnoepfeHtml(c){
   const darf = istLeitung() || c.betreuung === ich.id;
@@ -2013,6 +2014,8 @@ function mailKnoepfeHtml(c){
   return `<div class="mails"><h4 style="margin:14px 0 6px">Mails an den Kunden</h4>
     ${c.email ? '' : '<div class="fehlt" style="margin-bottom:6px">Für die Mails fehlt noch die E-Mail-Adresse der Ansprechperson.</div>'}
     ${zeile('begruessung')}${zeile('willkommen')}
+    <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;margin:2px 0 6px"><input type="checkbox" data-f="preisliste" style="flex:0 0 auto;margin-top:2px" ${c.preisliste !== false ? 'checked' : ''}>
+      <span>📄 Preisliste mitschicken <span class="leise">(${istSchweizOrt(c) ? 'Schweizer' : 'EU-'}Preisliste – die Mail nennt sie dann im Text)</span></span></label>
     ${!DEMO ? '<button class="link-knopf" data-akt="willkommen-vorschau" style="padding:0">Flyer-Vorschau ansehen</button>' : ''}</div>`;
 }
 async function mailSendenKnopf(c, art, knopf){
@@ -2023,7 +2026,7 @@ async function mailSendenKnopf(c, art, knopf){
   if (!confirm(frage)) return;
   if (DEMO) { c[m.feld] = new Date().toISOString(); panelZeichnen(c); return toast(`Demo: „${m.titel}“ wäre jetzt an ${c.email} gegangen ✓`); }
   knopf.disabled = true; knopf.textContent = 'Sendet …';
-  const {data, error} = await sb.functions.invoke('odoo-abgleich', {body:{aktion:'mail_senden', ort_id:c.id, art}});
+  const {data, error} = await sb.functions.invoke('odoo-abgleich', {body:{aktion:'mail_senden', ort_id:c.id, art, preisliste:c.preisliste !== false}});
   const fehler = error ? await odooFehlertext(error) : data?.fehler;
   if (fehler) { panelZeichnen(c); return fehlerZeigen(`„${m.titel}“ ließ sich nicht senden:`, fehler); }
   c[m.feld] = data.gesendet; panelZeichnen(c);
@@ -2047,6 +2050,7 @@ function willkommenAbschnitt(){
     <div class="hinweis" style="text-align:left;margin:-4px 0 8px">Am Ort gibt es zwei Knöpfe: <b>Begrüßungsmail</b> (nach dem ersten Gespräch, noch kein Kunde – mit der persönlichen Danke-Seite, der Preisliste und dem Willkommensangebot: 35 %, in der Schweiz 40 %)
       und <b>Willkommen in der Familie</b> (nach der ersten Bestellung – mit persönlichem Willkommens-Flyer, „Willkommen in der Familie“, Preisliste und Portfolios).
       Welche Dokumente mitgehen, legt ihr unter „Dokumente“ fest; Kunden in der Schweiz bekommen automatisch die Schweizer Fassung.
+      Ob die Preisliste mitgeht, entscheidet das Häkchen „📄 Preisliste mitschicken“ am Ort – beim Testlauf gilt das Häkchen des gewählten Ortes.
       Odoo verschickt im Namen des Botschafters, Antworten gehen an die Mayamunay-Adresse aus dem Profil. Am Ort steht danach „gesendet am …“; erneut senden geht jederzeit.</div>
     ${ohneProfil.length ? `<div class="fehlt" style="margin-top:8px">Profil (Vorname + Mayamunay-Adresse) fehlt noch bei: ${ohneProfil.map(esc).join(', ')} – jede Person trägt es selbst über das runde Symbol oben rechts ein.</div>` : ''}
     <div class="neu-box" style="margin-top:10px"><b>Testlauf</b> <span class="leise" style="font-size:13px">(geht nur an die Testadresse, der Kunde bekommt nichts)</span>
@@ -3962,7 +3966,7 @@ async function start(){
   austauschLaden().then(austauschBadge); setInterval(() => { if (document.hidden) return; const vorher = austauschStand(); austauschLaden().then(() => austauschStand() !== vorher ? austauschNeu() : austauschBadge()); }, 60000);
   legendeZeichnen(); allesZeichnen(); ansichtWechseln('karte');
   googleStandLaden();
-  if (!DEMO) dokumenteLaden();   // damit unter den Mail-Knöpfen steht, welche Dokumente mitgehen
+  if (!DEMO) dokumenteLaden();
   setTimeout(() => odooAbgleich(false), 1500);
   odooStatusZeichnen();
   if (istLeitung() && D.antraege.length) setTimeout(() => toast(`🗑️ ${D.antraege.length} ${D.antraege.length === 1 ? 'Ort soll' : 'Orte sollen'} entfernt werden – siehe Erinnerungen.`), 1200);
