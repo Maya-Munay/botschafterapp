@@ -542,7 +542,7 @@ table.modell td.treffer{background:var(--gold-hell);font-weight:700}
       <button class="knopf" id="link-knopf" style="width:100%">Code per Mail schicken</button>
       <div id="code-bereich" class="versteckt" style="margin-top:14px">
         <label class="feld">Code aus der Mail
-          <input id="login-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="6-stelliger Code"
+          <input id="login-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="8-stelliger Code"
             style="font-size:22px;letter-spacing:4px;text-align:center">
         </label>
         <button class="knopf gold" id="code-knopf" style="width:100%">Anmelden</button>
@@ -1062,11 +1062,12 @@ function codeFeldZeigen(){
   setTimeout(() => document.getElementById('login-code').focus(), 50);
 }
 // ---------- Code prüfen ----------
+const CODE_LAENGE = 8;   // so lang ist der Anmelde-Code aus Supabase (Authentication → Email → „Email OTP Length“)
 document.getElementById('code-knopf').onclick = async () => {
   const mail = document.getElementById('login-mail').value.trim();
   const code = document.getElementById('login-code').value.replace(/\D/g, '');
   if (!mail) return loginNachricht('Magst du oben deine E-Mail-Adresse eintragen?');
-  if (code.length < 6) return loginNachricht('Der Code hat 6 Ziffern – magst du ihn vollständig eintippen?');
+  if (code.length < CODE_LAENGE) return loginNachricht(`Der Code hat ${CODE_LAENGE} Ziffern – magst du ihn vollständig eintippen?`);
   const knopf = document.getElementById('code-knopf'); knopf.disabled = true; knopf.textContent = 'Prüfe Code …';
   // Bei noch nicht bestätigten Einladungen schickt Supabase den Code aus „Confirm signup“ bzw. „Invite user“ –
   // deshalb nacheinander alle passenden Arten prüfen
@@ -1089,7 +1090,7 @@ document.getElementById('code-knopf').onclick = async () => {
 document.getElementById('login-code').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('code-knopf').click(); });
 document.getElementById('login-code').addEventListener('input', e => {
   const z = e.target.value.replace(/\D/g, ''); if (z !== e.target.value) e.target.value = z;
-  if (z.length === 6) document.getElementById('code-knopf').click();   // Code vollständig → gleich anmelden
+  if (z.length === CODE_LAENGE) document.getElementById('code-knopf').click();   // Code vollständig → gleich anmelden
 });
 document.getElementById('login-mail').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('link-knopf').click(); });
 
