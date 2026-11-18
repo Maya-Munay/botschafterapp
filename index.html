@@ -454,7 +454,12 @@ table.team th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color
 .ort-link{padding:0;font-size:13px;text-align:left}
 .suche-los{display:none;border:0;background:var(--kakao);color:#fff;border-radius:8px;padding:5px 10px;font-size:13px;font-weight:600;margin-left:4px;flex:none}
 .suche-los.sichtbar{display:inline-block}
-.mail-zeile{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px;font-size:13px}
+.mail-zeile{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:4px;font-size:13px}
+.mail-wahl{display:flex;flex-direction:column;gap:2px;margin:0 0 10px 6px;font-size:13px}
+.mail-haken{display:flex;gap:7px;align-items:center}
+.mail-haken.zusatz{color:var(--leise)}
+.dok-ablage{margin-top:8px;border:2px dashed var(--linie);border-radius:12px;padding:16px;text-align:center;color:var(--leise);font-size:13px}
+.dok-ablage.drueber{border-color:var(--gold);background:var(--gold-hell);color:var(--kakao)}
 
 /* Dokumente + Abgänge */
 .dok-zeile{align-items:center}
@@ -844,7 +849,7 @@ const ortZeile = c => ({id:c.id, name:c.name || '', adresse:c.adresse || '', sta
   lat:c.lat, lng:c.lng, status:c.status, betreuung:c.betreuung || null, art:c.art || [], zeremonie:!!c.zeremonie, event:!!c.event,
   ansprechperson:c.ansprechperson || '', vorname:c.vorname || '', nachname:c.nachname || '', telefon:c.telefon || '', email:c.email || '',
   kontakt:c.kontakt || '', naechster_kontakt:c.naechsterKontakt || null, notiz:c.notiz || '',
-  google:c.google || null, osm:c.osm || null, erstellt_von:c.erstelltVon || null, kundenpflege:c.kundenpflege !== false, preisliste:c.preisliste !== false,
+  google:c.google || null, osm:c.osm || null, erstellt_von:c.erstelltVon || null, kundenpflege:c.kundenpflege !== false, preisliste:c.preisliste !== false, mail_auswahl:c.mailAuswahl || {},
   verkaufsstelle:!!c.verkaufsstelle, shop_text:c.shopText || '', shop_foto:c.shopFoto || ''});
 const besuchZeile = (b, ortId) => ({id:b.id, ort_id:ortId, datum:b.datum, person:b.person || null, notiz:b.notiz});
 const probeZeile = (p, ortId) => ({id:p.id, ort_id:ortId, datum:p.datum, sorte:p.sorte, menge:p.menge || '', anzahl:Math.max(1, +p.anzahl || 1), bestellung:p.bestellung, person:p.person || null});
@@ -885,7 +890,7 @@ async function datenLaden(){
     kontakt:x.kontakt, naechsterKontakt:x.naechster_kontakt || '', notiz:x.notiz,
     google:x.google || '', osm:x.osm || '', erstelltVon:x.erstellt_von || '',
     odooLead:x.odoo_lead || null, odooPhase:x.odoo_phase || '', odooDaten:x.odoo_daten || null,
-    willkommenGesendet:x.willkommen_gesendet || '', begruessungGesendet:x.begruessung_gesendet || '', willkommenInfo:x.willkommen_info || '', kundenpflege:x.kundenpflege !== false, preisliste:x.preisliste !== false,
+    willkommenGesendet:x.willkommen_gesendet || '', begruessungGesendet:x.begruessung_gesendet || '', willkommenInfo:x.willkommen_info || '', kundenpflege:x.kundenpflege !== false, preisliste:x.preisliste !== false, mailAuswahl:x.mail_auswahl || {},
     verkaufsstelle:!!x.verkaufsstelle, shopText:x.shop_text || '', shopFoto:x.shop_foto || '',
     besuche:(bNach[x.id] || []).map(y => ({id:y.id, datum:y.datum, person:y.person || '', notiz:y.notiz})),
     proben:(pNach[x.id] || []).map(y => ({id:y.id, datum:y.datum, sorte:y.sorte, menge:y.menge, anzahl:y.anzahl || 1, bestellung:y.bestellung, person:y.person || ''}))}));
@@ -1458,7 +1463,7 @@ async function dokumenteLaden(){
   dokInfoFehlt = !!info.error;
   DOKINFO = Object.fromEntries((info.data || []).map(i => [i.name, i]));
 }
-const dokPasst = d => dokFilter === 'alle' || !!DOKINFO[d.name]?.[dokFilter];
+const dokPasst = d => dokFilter === 'alle' || (dokFilter === 'lernen' ? !!DOKINFO[d.name]?.lernen : dokArten(d.name).includes(dokFilter === 'begruessungsmail' ? 'begruessung' : 'willkommen'));
 // Zuordnung je Mail + „für alle / EU / Schweiz“ – welche Dokumente rausgehen, entscheidet die Brücke beim Senden (Land des Kunden)
 const istSchweizOrt = c => /^(ch|che|schweiz|switzerland|suisse|svizzera|svizra)$/i.test(String(c.land || '').trim());
 // Länder (vorlagen/laender.json – dieselbe Datei nutzen Brücke und Dokumenten-Generator). Ein Dokument gehört zu einem Land oder „für alle“;
@@ -1476,23 +1481,53 @@ const landOrt = c => { const l = String(c.land || '').trim().toLowerCase();
   return (!l ? LAENDER.find(x => x.code === 'DE') : LAENDER.find(x => x.namen.includes(l) || x.code.toLowerCase() === l) || LAENDER.find(x => x.code === 'INT')) || LAENDER[0]; };
 const fuerCode = f => ALT_FUER[f] || String(f || 'alle').toUpperCase();
 const fuerName = f => { const c = fuerCode(f); return c === 'ALLE' ? 'für alle Kunden' : LAENDER.find(x => x.code === c)?.name || c; };
+// ---- Welche Mail, welches Land: am Dateinamen (seit 18.11.2026 – vorher Zuordnung per Knopf) ----
+//   „…Kennenlernen…“ → Begrüßung · „…Willkommen in der Familie…“ → Willkommen · „…Preisliste…“ → beide
+//   Endung _DE/_AT/_NL/_Schweiz/_EU/_EN = Land (laender.json „datei“); ohne Endung = „für alle“ (zum Dazunehmen im Kunden-Fenster)
+const DOK_ART = [[/^Kennenlernen/i, ['begruessung']], [/^Willkommen in der Familie/i, ['willkommen']], [/Preisliste/i, ['begruessung', 'willkommen']]];
+const dokKernApp = n => n.replace(/\.[^.]+$/, '').replace(/_/g, ' ').replace(/^Maya Munay\s+/i, '').replace(/\s+(Schweiz|[A-Z]{2,3})$/, '').trim();
+const dokLandCode = n => { const m = n.replace(/\.[^.]+$/, '').match(/[_ ](Schweiz|[A-Z]{2,3})$/); if (!m) return null;
+  return LAENDER.find(l => (l.datei || l.code) === m[1] || l.code === m[1])?.code || null; };
+const dokArten = n => DOK_ART.find(([r]) => r.test(dokKernApp(n)))?.[1] || [];
+const dokAnzeige = n => { const c = dokLandCode(n); return dokKernApp(n) + (c ? ` · ${{INT:'englisch', EU:'EU'}[c] || LAENDER.find(l => l.code === c)?.name || c}` : ''); };
+// Vorschlag für einen Ort: Dokumente seines Landes (sonst Ersatz-Land); Dokumente ohne Land zum Dazunehmen
+function mailDokumente(c, art){
+  const L = landOrt(c), kette = [L.code, ...(L.ersatz || [])];
+  const namen = (Array.isArray(DOKS) ? DOKS : []).map(d => d.name).filter(n => /\.pdf$/i.test(n));
+  const gruppen = {};
+  namen.filter(n => dokArten(n).includes(art) && dokLandCode(n)).forEach(n => (gruppen[dokKernApp(n)] ||= []).push(n));
+  const fest = Object.values(gruppen).flatMap(l => { const code = kette.find(k => l.some(n => dokLandCode(n) === k)); return code ? l.filter(n => dokLandCode(n) === code) : []; });
+  const extra = namen.filter(n => !dokLandCode(n) && !dokArten(n).length);
+  return {fest, extra};
+}
+// Häkchen je Kunde (gespeichert am Ort, Feld mail_auswahl): ohne Eintrag = Vorschlag an, Zusatz-Dokumente aus,
+// Preisliste wie das frühere Häkchen „Preisliste mitschicken“
+const MAIL_RECHNER = '__kakao_rechner__';
+function mailHaken(c, art, name, zusatz){
+  const g = c.mailAuswahl?.[art]?.[name];
+  if (typeof g === 'boolean') return g;
+  if (zusatz) return false;
+  return /Preisliste/i.test(name) ? c.preisliste !== false : true;
+}
+function mailAuswahl(c, art){
+  const {fest, extra} = mailDokumente(c, art);
+  return {dokumente: [...fest.filter(n => mailHaken(c, art, n)), ...extra.filter(n => mailHaken(c, art, n, true))],
+          rechner: art === 'willkommen' && mailHaken(c, art, MAIL_RECHNER)};
+}
+
 function dokZeile(d, leitung){
   const i = DOKINFO[d.name] || {}, offen = dokBearbeiten === d.name;
   return `<div class="cafe-karte dok-zeile${offen ? ' offen' : ''}">
     <span class="dok-sym">${/\.pdf$/i.test(d.name) ? 'PDF' : /\.(png|jpe?g|webp)$/i.test(d.name) ? 'BILD' : 'DATEI'}</span>
     <div class="info"><div class="name">${esc(dokName(d.name))}</div>
       ${i.beschreibung ? `<div class="dok-text">${esc(i.beschreibung)}</div>` : ''}
-      <div class="klein">${i.begruessungsmail ? '<span class="dok-marke">✉ Begrüßungsmail</span>' : ''}${i.willkommensmail ? '<span class="dok-marke">✉ Willkommensmail</span>' : ''}${DOKVORLAGEN.has(d.name) ? '<span class="dok-marke persoenlich" title="Wird beim Senden mit Café, Botschafter, Kontakt und Foto ergänzt">✨ persönlich</span>' : ''}${(i.begruessungsmail || i.willkommensmail) && i.fuer && i.fuer !== 'alle' ? `<span class="dok-marke land">${'📍 ' + esc(fuerName(i.fuer))}</span>` : ''}${i.lernen ? '<span class="dok-marke lernen">Zum Lernen</span>' : ''}${dokGroesse(d.metadata?.size)}${d.updated_at ? ' · ' + datumDe(String(d.updated_at).slice(0, 10)) : ''}</div></div>
+      <div class="klein">${dokArten(d.name).includes('begruessung') ? '<span class="dok-marke">✉ Begrüßung</span>' : ''}${dokArten(d.name).includes('willkommen') ? '<span class="dok-marke">✉ Willkommen</span>' : ''}${DOKVORLAGEN.has(d.name) ? '<span class="dok-marke persoenlich" title="Wird beim Senden mit Café, Botschafter, Kontakt und Foto ergänzt">✨ persönlich</span>' : ''}${dokLandCode(d.name) ? `<span class="dok-marke land">📍 ${esc(LAENDER.find(l => l.code === dokLandCode(d.name))?.name || '')}</span>` : (/\.pdf$/i.test(d.name) && !dokArten(d.name).length ? '<span class="dok-marke land">zum Dazunehmen</span>' : '')}${i.lernen ? '<span class="dok-marke lernen">Zum Lernen</span>' : ''}${dokGroesse(d.metadata?.size)}${d.updated_at ? ' · ' + datumDe(String(d.updated_at).slice(0, 10)) : ''}</div></div>
     <div class="dok-knoepfe"><button class="knopf klein" data-dok-auf="${esc(d.name)}">Öffnen</button>
       ${leitung && !dokInfoFehlt ? `<button class="knopf klein" data-dok-bearb="${esc(d.name)}">${offen ? 'Schließen' : 'Bearbeiten'}</button>` : ''}
       ${leitung ? `<button class="weg" data-dok-weg="${esc(d.name)}" title="Dokument löschen" aria-label="Dokument löschen">×</button>` : ''}</div>
     ${offen ? `<div class="dok-form">
-      <b style="font-size:13px">Geht mit dieser Mail an die Kunden:</b>
-      <label><input type="checkbox" id="dok-bg" ${i.begruessungsmail ? 'checked' : ''}> ✉ Begrüßungsmail <span class="leise">(nach dem ersten Gespräch – noch kein Kunde)</span></label>
-      <label><input type="checkbox" id="dok-wm" ${i.willkommensmail ? 'checked' : ''}> ✉ Willkommen in der Familie <span class="leise">(nach der ersten Bestellung)</span></label>
-      <label style="display:flex;align-items:center;gap:8px">Für welche Kunden?
-        <select id="dok-fuer" style="width:auto"><option value="alle"${fuerCode(i.fuer) === 'ALLE' ? ' selected' : ''}>für alle Kunden</option>${LAENDER.map(l => `<option value="${l.code}"${fuerCode(i.fuer) === l.code ? ' selected' : ''}>nur ${esc(l.name)}${l.sprache === 'en' && l.code !== 'INT' ? ' (englisch)' : ''}</option>`).join('')}</select></label>
-      <span class="leise" style="font-size:12.5px;margin-top:-4px">Das Land kommt vom Ort (Feld „Land“). Jedes Dokument gehört zu einem Land oder geht an alle. Fehlt für ein Land ein Dokument, nimmt die App das Ersatz-Land (Österreich → übrige EU, Niederlande → englisch). Unbekannte Länder bekommen die englischen Unterlagen.</span>
+      <span class="leise" style="font-size:12.5px">Mail und Land erkennt die App am Dateinamen: „Kennenlernen“ → Begrüßung, „Willkommen in der Familie“ → Willkommen,
+        „Preisliste“ → beide; Endung _DE, _AT, _NL, _Schweiz, _EU, _EN = Land. Dokumente ohne Endung lassen sich im Kunden-Fenster dazunehmen.</span>
       <b style="font-size:13px;margin-top:4px">Für das Team:</b>
       <label><input type="checkbox" id="dok-ln" ${i.lernen ? 'checked' : ''}> zum Lernen für die Botschafter</label>
       <input type="text" id="dok-bs" maxlength="200" placeholder="Kurze Beschreibung, z.B. „Alles über Herkunft und Team – gut vor dem ersten Kundengespräch“" value="${esc(i.beschreibung || '')}">
@@ -1503,10 +1538,10 @@ async function dokumenteZeichnen(neu){
   const el = document.getElementById('dokumente-inhalt'), leitung = istLeitung();
   if (DOKS === null || neu) { el.innerHTML = '<h2>Dokumente</h2><div class="leise">Lade …</div>'; await dokumenteLaden(); }
   const alle = Array.isArray(DOKS) ? DOKS : [];
-  const zahl = k => alle.filter(d => DOKINFO[d.name]?.[k]).length;
+  const zahl = k => alle.filter(d => k === 'lernen' ? DOKINFO[d.name]?.lernen : dokArten(d.name).includes(k === 'begruessungsmail' ? 'begruessung' : 'willkommen')).length;
   const sichtbar = alle.filter(dokPasst);
   el.innerHTML = `<div class="liste-kopf"><h2>Dokumente</h2></div>
-    <p class="leise" style="margin-top:-6px">Danke-Seite fürs Kennenlernen, Willkommen in der Familie, Preislisten und Portfolios – zum Ansehen, zum Lernen und zum Weitergeben. Unter „Bearbeiten“ legt die Teamleitung fest, mit welcher Mail ein Dokument rausgeht und für welches Land.
+    <p class="leise" style="margin-top:-6px">Danke-Seite fürs Kennenlernen, Willkommen in der Familie, Preislisten und Portfolios – zum Ansehen, zum Lernen und zum Weitergeben. Mit welcher Mail und für welches Land ein Dokument rausgeht, erkennt die App am Dateinamen; im Kunden-Fenster hakt ihr an, was mitgeht.
       Unter <b>Zum Lernen</b> findet ihr alles, was hilft, Maya Munay und den Kakao gut zu erklären.</p>
     ${DEMO ? '<div class="leer">In der Demo gibt es keine Dokumente – in der echten App liegen hier die Danke-Seite, Willkommen in der Familie, Preislisten und Portfolios.</div>'
       : DOKS.fehler ? `<div class="fehlt">Die Dokumente lassen sich gerade nicht laden: ${esc(DOKS.fehler)}</div>`
@@ -1520,9 +1555,20 @@ async function dokumenteZeichnen(neu){
     ${leitung && !DEMO && dokInfoFehlt ? '<div class="leise" style="margin-top:10px;font-size:13px">Für die Zuordnung zu den Mails und „Zum Lernen“ bitte einmal die neue schema.sql in Supabase ausführen.</div>' : ''}
     ${leitung && !DEMO ? `<div class="neu-box" style="margin-top:14px">
       <b>Dokument hinzufügen</b> <span class="leise" style="font-size:13px">(nur Teamleitung · PDF oder Bild · gleicher Name ersetzt die alte Version · zu einem PDF gehört ggf. eine „….vorlage.json“ – einfach mit auswählen, dann wird es beim Senden persönlich)</span>
+      <div class="dok-ablage" id="dok-ablage">Dateien hierher ziehen – oder auswählen (mehrere auf einmal mit Cmd bzw. Shift)</div>
       <div class="inline" style="margin-top:8px"><input type="file" id="dok-datei" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.json">
         <button class="knopf klein" data-dok-hoch>Hochladen</button></div></div>` : ''}`;
 }
+// Dateien in die Ablage ziehen → wie „Auswählen“ + „Hochladen“
+['dragover', 'dragleave', 'drop'].forEach(typ => document.getElementById('seite-dokumente').addEventListener(typ, e => {
+  const zone = e.target.closest?.('#dok-ablage'); if (!zone) return;
+  e.preventDefault();
+  zone.classList.toggle('drueber', typ === 'dragover');
+  if (typ === 'drop' && e.dataTransfer?.files?.length) {
+    const eingabe = document.getElementById('dok-datei'); eingabe.files = e.dataTransfer.files;
+    document.querySelector('[data-dok-hoch]')?.click();
+  }
+}));
 document.getElementById('seite-dokumente').addEventListener('click', async e => {
   const auf = e.target.closest('[data-dok-auf]')?.dataset.dokAuf, weg = e.target.closest('[data-dok-weg]')?.dataset.dokWeg;
   const filter = e.target.closest('[data-dok-filter]')?.dataset.dokFilter, bearb = e.target.closest('[data-dok-bearb]')?.dataset.dokBearb;
@@ -1530,8 +1576,9 @@ document.getElementById('seite-dokumente').addEventListener('click', async e => 
   if (filter) { dokFilter = filter; return dokumenteZeichnen(); }
   if (bearb && istLeitung()) { dokBearbeiten = dokBearbeiten === bearb ? null : bearb; return dokumenteZeichnen(); }
   if (speichern && istLeitung()) {
-    const zeile = {name:speichern, begruessungsmail:document.getElementById('dok-bg').checked, willkommensmail:document.getElementById('dok-wm').checked,
-                   fuer:document.getElementById('dok-fuer').value, lernen:document.getElementById('dok-ln').checked,
+    const alt = DOKINFO[speichern] || {};
+    const zeile = {name:speichern, begruessungsmail:!!alt.begruessungsmail, willkommensmail:!!alt.willkommensmail,
+                   fuer:alt.fuer || 'alle', lernen:document.getElementById('dok-ln').checked,
                    beschreibung:document.getElementById('dok-bs').value.trim(), geaendert:new Date().toISOString()};
     const {error} = await sb.from('dokumente_info').upsert(zeile);
     if (error) return fehlerZeigen('Die Angaben ließen sich nicht speichern:', error.message);
@@ -2041,25 +2088,30 @@ const MAILS = {begruessung:{titel:'Begrüßungsmail', zweck:'nach dem ersten Ges
 function mailKnoepfeHtml(c){
   const darf = istLeitung() || c.betreuung === ich.id;
   if (!darf || !c.betreuung) return '';
-  const zeile = art => { const m = MAILS[art], am = c[m.feld];
+  const haken = (art, name, titel, zusatz) => `<label class="mail-haken${zusatz ? ' zusatz' : ''}"><input type="checkbox" data-mailwahl="${art}" data-name="${esc(name)}"${zusatz ? ' data-zusatz="1"' : ''} ${mailHaken(c, art, name, zusatz) ? 'checked' : ''}> ${esc(titel)}</label>`;
+  const zeile = art => { const m = MAILS[art], am = c[m.feld], {fest, extra} = mailDokumente(c, art);
     return `<div class="mail-zeile"><button class="knopf klein ${am ? 'leise' : ''}" data-akt="mail-${art}">✉ ${m.titel}${am ? ' erneut senden' : ' senden'}</button>
-      <span class="leise">${am ? `✓ gesendet am ${datumDe(String(am).slice(0, 10))}` : m.zweck}</span></div>`; };
+      <span class="leise">${am ? `✓ gesendet am ${datumDe(String(am).slice(0, 10))}` : m.zweck}</span></div>
+      <div class="mail-wahl">${fest.map(n => haken(art, n, dokAnzeige(n))).join('')}${art === 'willkommen' ? haken(art, MAIL_RECHNER, 'Kakao-Rechner (persönlich)') : ''}
+        ${extra.map(n => haken(art, n, dokAnzeige(n), true)).join('')}
+        ${!fest.length && !DEMO ? '<span class="leise">Für dieses Land liegen noch keine passenden Dokumente unter „Dokumente“.</span>' : ''}</div>`; };
   return `<div class="mails"><h4 style="margin:14px 0 6px">Mails an den Kunden</h4>
     ${c.email ? '' : '<div class="fehlt" style="margin-bottom:6px">Für die Mails fehlt noch die E-Mail-Adresse der Ansprechperson.</div>'}
+    <div class="leise" style="font-size:12.5px;margin:-2px 0 6px">Land: <b>${esc(landOrt(c).name)}</b> · Mail auf ${landOrt(c).sprache === 'en' ? 'Englisch' : 'Deutsch'} – angehakt geht mit, die Auswahl bleibt für diesen Kunden gespeichert.</div>
     ${zeile('begruessung')}${zeile('willkommen')}
-    <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;margin:2px 0 6px"><input type="checkbox" data-f="preisliste" style="flex:0 0 auto;margin-top:2px" ${c.preisliste !== false ? 'checked' : ''}>
-      <span>📄 Preisliste mitschicken <span class="leise">(Preisliste ${esc(landOrt(c).name)} – die Mail nennt sie dann im Text)</span></span></label>
     ${!DEMO ? '<button class="link-knopf" data-akt="willkommen-vorschau" style="padding:0">Kakao-Rechner ansehen</button>' : ''}</div>`;
 }
 async function mailSendenKnopf(c, art, knopf){
   const m = MAILS[art], am = c[m.feld];
   if (!c.email) return toast('Magst du zuerst die E-Mail-Adresse der Ansprechperson eintragen?');
-  const frage = am ? `„${m.titel}“ wurde am ${datumDe(String(am).slice(0, 10))} schon gesendet. Noch einmal an ${c.email} senden?`
-                   : `„${m.titel}“ jetzt an ${c.email} senden?`;
-  if (!await frage(frage)) return;
+  const auswahl = mailAuswahl(c, art);
+  const text = (am ? `„${m.titel}“ wurde am ${datumDe(String(am).slice(0, 10))} schon gesendet. Noch einmal an ${c.email} senden?`
+                   : `„${m.titel}“ jetzt an ${c.email} senden?`)
+    + `\n\nDabei: ${[...auswahl.dokumente.map(dokAnzeige), ...(auswahl.rechner ? ['Kakao-Rechner'] : [])].join(', ') || 'keine Anhänge'}`;
+  if (!await frage(text)) return;
   if (DEMO) { c[m.feld] = new Date().toISOString(); panelZeichnen(c); return toast(`Demo: „${m.titel}“ wäre jetzt an ${c.email} gegangen ✓`); }
   knopf.disabled = true; knopf.textContent = 'Sendet …';
-  const {data, error} = await sb.functions.invoke('odoo-abgleich', {body:{aktion:'mail_senden', ort_id:c.id, art, preisliste:c.preisliste !== false}});
+  const {data, error} = await sb.functions.invoke('odoo-abgleich', {body:{aktion:'mail_senden', ort_id:c.id, art, dokumente:auswahl.dokumente, rechner:auswahl.rechner}});
   const fehler = error ? await odooFehlertext(error) : data?.fehler;
   if (fehler) { panelZeichnen(c); return fehlerZeigen(`„${m.titel}“ ließ sich nicht senden:`, fehler); }
   c[m.feld] = data.gesendet; panelZeichnen(c);
@@ -2779,6 +2831,11 @@ function panelZeichnen(c){
 
 panel.addEventListener('change', e => {
   const c = D.cafes.find(x => x.id === auswahl); if (!c) return;
+  if (e.target.dataset.mailwahl) {
+    const art = e.target.dataset.mailwahl;
+    c.mailAuswahl = {...(c.mailAuswahl || {}), [art]: {...(c.mailAuswahl?.[art] || {}), [e.target.dataset.name]: e.target.checked}};
+    return sichern();
+  }
   const f = e.target.dataset.f;
   if (f) {
     c[f] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
