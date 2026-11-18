@@ -1461,14 +1461,28 @@ async function dokumenteLaden(){
 const dokPasst = d => dokFilter === 'alle' || !!DOKINFO[d.name]?.[dokFilter];
 // Zuordnung je Mail + „für alle / EU / Schweiz“ – welche Dokumente rausgehen, entscheidet die Brücke beim Senden (Land des Kunden)
 const istSchweizOrt = c => /^(ch|che|schweiz|switzerland|suisse|svizzera|svizra)$/i.test(String(c.land || '').trim());
-const DOK_FUER = {alle:'für alle Kunden', eu:'nur EU / Deutschland', ch:'nur Schweiz'};
+// Länder (vorlagen/laender.json – dieselbe Datei nutzen Brücke und Dokumenten-Generator). Ein Dokument gehört zu einem Land oder „für alle“;
+// fehlt für ein Land ein Dokument, gelten die Unterlagen aus „ersatz“ (z. B. Österreich → übrige EU). Rückfall, falls die Datei fehlt:
+let LAENDER = [
+  {code:'DE', name:'Deutschland', namen:['deutschland','germany','de','deu','brd'], sprache:'de', ersatz:['EU']},
+  {code:'AT', name:'Österreich', namen:['österreich','oesterreich','austria','at','aut'], sprache:'de', ersatz:['EU']},
+  {code:'NL', name:'Niederlande', namen:['niederlande','netherlands','the netherlands','nederland','holland','nl','nld'], sprache:'en', ersatz:['INT']},
+  {code:'CH', name:'Schweiz', namen:['schweiz','switzerland','suisse','svizzera','svizra','ch','che'], sprache:'de', ersatz:[]},
+  {code:'EU', name:'EU (deutsch)', namen:['frankreich','france','fr','italien','italy','it','spanien','spain','es','belgien','belgium','be','polen','poland','pl','portugal','pt','dänemark','denmark','dk','schweden','sweden','se','finnland','finland','fi','irland','ireland','ie','luxemburg','luxembourg','lu','tschechien','czechia','cz','griechenland','greece','gr','ungarn','hungary','hu','slowakei','slovakia','sk','slowenien','slovenia','si','kroatien','croatia','hr','rumänien','romania','ro','bulgarien','bulgaria','bg','estland','estonia','ee','lettland','latvia','lv','litauen','lithuania','lt','malta','mt','zypern','cyprus','cy'], sprache:'de', ersatz:[]},
+  {code:'INT', name:'andere Länder (englisch)', namen:[], sprache:'en', ersatz:[]}];
+fetch('vorlagen/laender.json', {cache:'no-cache'}).then(r => r.ok ? r.json() : null).then(j => { if (j?.laender?.length) LAENDER = j.laender; }).catch(() => {});
+const ALT_FUER = {eu:'EU', ch:'CH', en:'INT'};      // frühere Zuordnungen (bis 17.11.2026)
+const landOrt = c => { const l = String(c.land || '').trim().toLowerCase();
+  return (!l ? LAENDER.find(x => x.code === 'DE') : LAENDER.find(x => x.namen.includes(l) || x.code.toLowerCase() === l) || LAENDER.find(x => x.code === 'INT')) || LAENDER[0]; };
+const fuerCode = f => ALT_FUER[f] || String(f || 'alle').toUpperCase();
+const fuerName = f => { const c = fuerCode(f); return c === 'ALLE' ? 'für alle Kunden' : LAENDER.find(x => x.code === c)?.name || c; };
 function dokZeile(d, leitung){
   const i = DOKINFO[d.name] || {}, offen = dokBearbeiten === d.name;
   return `<div class="cafe-karte dok-zeile${offen ? ' offen' : ''}">
     <span class="dok-sym">${/\.pdf$/i.test(d.name) ? 'PDF' : /\.(png|jpe?g|webp)$/i.test(d.name) ? 'BILD' : 'DATEI'}</span>
     <div class="info"><div class="name">${esc(dokName(d.name))}</div>
       ${i.beschreibung ? `<div class="dok-text">${esc(i.beschreibung)}</div>` : ''}
-      <div class="klein">${i.begruessungsmail ? '<span class="dok-marke">✉ Begrüßungsmail</span>' : ''}${i.willkommensmail ? '<span class="dok-marke">✉ Willkommensmail</span>' : ''}${DOKVORLAGEN.has(d.name) ? '<span class="dok-marke persoenlich" title="Wird beim Senden mit Café, Botschafter, Kontakt und Foto ergänzt">✨ persönlich</span>' : ''}${(i.begruessungsmail || i.willkommensmail) && i.fuer && i.fuer !== 'alle' ? `<span class="dok-marke land">${i.fuer === 'ch' ? '🇨🇭 nur Schweiz' : '🇪🇺 nur EU'}</span>` : ''}${i.lernen ? '<span class="dok-marke lernen">Zum Lernen</span>' : ''}${dokGroesse(d.metadata?.size)}${d.updated_at ? ' · ' + datumDe(String(d.updated_at).slice(0, 10)) : ''}</div></div>
+      <div class="klein">${i.begruessungsmail ? '<span class="dok-marke">✉ Begrüßungsmail</span>' : ''}${i.willkommensmail ? '<span class="dok-marke">✉ Willkommensmail</span>' : ''}${DOKVORLAGEN.has(d.name) ? '<span class="dok-marke persoenlich" title="Wird beim Senden mit Café, Botschafter, Kontakt und Foto ergänzt">✨ persönlich</span>' : ''}${(i.begruessungsmail || i.willkommensmail) && i.fuer && i.fuer !== 'alle' ? `<span class="dok-marke land">${'📍 ' + esc(fuerName(i.fuer))}</span>` : ''}${i.lernen ? '<span class="dok-marke lernen">Zum Lernen</span>' : ''}${dokGroesse(d.metadata?.size)}${d.updated_at ? ' · ' + datumDe(String(d.updated_at).slice(0, 10)) : ''}</div></div>
     <div class="dok-knoepfe"><button class="knopf klein" data-dok-auf="${esc(d.name)}">Öffnen</button>
       ${leitung && !dokInfoFehlt ? `<button class="knopf klein" data-dok-bearb="${esc(d.name)}">${offen ? 'Schließen' : 'Bearbeiten'}</button>` : ''}
       ${leitung ? `<button class="weg" data-dok-weg="${esc(d.name)}" title="Dokument löschen" aria-label="Dokument löschen">×</button>` : ''}</div>
@@ -1477,8 +1491,8 @@ function dokZeile(d, leitung){
       <label><input type="checkbox" id="dok-bg" ${i.begruessungsmail ? 'checked' : ''}> ✉ Begrüßungsmail <span class="leise">(nach dem ersten Gespräch – noch kein Kunde)</span></label>
       <label><input type="checkbox" id="dok-wm" ${i.willkommensmail ? 'checked' : ''}> ✉ Willkommen in der Familie <span class="leise">(nach der ersten Bestellung)</span></label>
       <label style="display:flex;align-items:center;gap:8px">Für welche Kunden?
-        <select id="dok-fuer" style="width:auto">${Object.entries(DOK_FUER).map(([k, t]) => `<option value="${k}"${(i.fuer || 'alle') === k ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
-      <span class="leise" style="font-size:12.5px;margin-top:-4px">Das Land kommt vom Ort (Feld „Land“). Liegt ein Kunde in der Schweiz, gehen nur Dokumente „für alle“ und „nur Schweiz“ raus.</span>
+        <select id="dok-fuer" style="width:auto"><option value="alle"${fuerCode(i.fuer) === 'ALLE' ? ' selected' : ''}>für alle Kunden</option>${LAENDER.map(l => `<option value="${l.code}"${fuerCode(i.fuer) === l.code ? ' selected' : ''}>nur ${esc(l.name)}${l.sprache === 'en' && l.code !== 'INT' ? ' (englisch)' : ''}</option>`).join('')}</select></label>
+      <span class="leise" style="font-size:12.5px;margin-top:-4px">Das Land kommt vom Ort (Feld „Land“). Jedes Dokument gehört zu einem Land oder geht an alle. Fehlt für ein Land ein Dokument, nimmt die App das Ersatz-Land (Österreich → übrige EU, Niederlande → englisch). Unbekannte Länder bekommen die englischen Unterlagen.</span>
       <b style="font-size:13px;margin-top:4px">Für das Team:</b>
       <label><input type="checkbox" id="dok-ln" ${i.lernen ? 'checked' : ''}> zum Lernen für die Botschafter</label>
       <input type="text" id="dok-bs" maxlength="200" placeholder="Kurze Beschreibung, z.B. „Alles über Herkunft und Team – gut vor dem ersten Kundengespräch“" value="${esc(i.beschreibung || '')}">
@@ -2034,7 +2048,7 @@ function mailKnoepfeHtml(c){
     ${c.email ? '' : '<div class="fehlt" style="margin-bottom:6px">Für die Mails fehlt noch die E-Mail-Adresse der Ansprechperson.</div>'}
     ${zeile('begruessung')}${zeile('willkommen')}
     <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;margin:2px 0 6px"><input type="checkbox" data-f="preisliste" style="flex:0 0 auto;margin-top:2px" ${c.preisliste !== false ? 'checked' : ''}>
-      <span>📄 Preisliste mitschicken <span class="leise">(${istSchweizOrt(c) ? 'Schweizer' : 'EU-'}Preisliste – die Mail nennt sie dann im Text)</span></span></label>
+      <span>📄 Preisliste mitschicken <span class="leise">(Preisliste ${esc(landOrt(c).name)} – die Mail nennt sie dann im Text)</span></span></label>
     ${!DEMO ? '<button class="link-knopf" data-akt="willkommen-vorschau" style="padding:0">Kakao-Rechner ansehen</button>' : ''}</div>`;
 }
 async function mailSendenKnopf(c, art, knopf){
@@ -2066,9 +2080,9 @@ function willkommenAbschnitt(){
   const zuletzt = D.cafes.flatMap(c => [['Begrüßung', c.begruessungGesendet], ['Willkommen', c.willkommenGesendet]].filter(x => x[1]).map(([a, d]) => ({c, a, d})))
     .sort((x, y) => String(y.d).localeCompare(String(x.d))).slice(0, 8);
   return `<h3 id="willkommen-bereich">Mails an Kunden</h3>
-    <div class="hinweis" style="text-align:left;margin:-4px 0 8px">Am Ort gibt es zwei Knöpfe: <b>Begrüßungsmail</b> (nach dem ersten Gespräch, noch kein Kunde – mit der persönlichen Danke-Seite, der Preisliste und dem Willkommensangebot: 35 %, in der Schweiz 40 %)
+    <div class="hinweis" style="text-align:left;margin:-4px 0 8px">Am Ort gibt es zwei Knöpfe: <b>Begrüßungsmail</b> (nach dem ersten Gespräch, noch kein Kunde – mit der persönlichen Danke-Seite, der Preisliste und dem Willkommensangebot: 35 % auf Kakaomasse, Shroomcacao und Gewürze immer 20 %)
       und <b>Willkommen in der Familie</b> (nach der ersten Bestellung – mit „Willkommen in der Familie“, dem Kakao-Rechner, Preisliste und Portfolios).
-      Welche Dokumente mitgehen, legt ihr unter „Dokumente“ fest; Kunden in der Schweiz bekommen automatisch die Schweizer Fassung.
+      Welche Dokumente mitgehen, legt ihr unter „Dokumente“ fest; Kunden in der Schweiz bekommen automatisch die Schweizer Fassung, Kunden außerhalb der EU die englische.
       Ob die Preisliste mitgeht, entscheidet das Häkchen „📄 Preisliste mitschicken“ am Ort – beim Testlauf gilt das Häkchen des gewählten Ortes.
       Odoo verschickt im Namen des Botschafters, Antworten gehen an die Mayamunay-Adresse aus dem Profil. Am Ort steht danach „gesendet am …“; erneut senden geht jederzeit.</div>
     ${ohneProfil.length ? `<div class="fehlt" style="margin-top:8px">Profil (Vorname + Mayamunay-Adresse) fehlt noch bei: ${ohneProfil.map(esc).join(', ')} – jede Person trägt es selbst über das runde Symbol oben rechts ein.</div>` : ''}
